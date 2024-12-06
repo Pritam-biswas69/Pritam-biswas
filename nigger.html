@@ -1,16 +1,308 @@
-<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Website</title>
+    <title>Mobile 2D Pokemon Game</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-        h1 { color: blue; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: black;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        canvas {
+            border: 2px solid black;
+            background-color: lightgreen;
+            display: block;
+            margin: 0 auto;
+        }
+
+        #coinCounter {
+            text-align: center;
+            font-size: 30px;
+            font-weight: bold;
+            padding: 10px;
+            margin-top: 10px;
+            background: linear-gradient(to right, #ffb347, #ffcc33);
+            border-radius: 20px;
+            color: white;
+            box-shadow: 0px 4px 10px rgba(255, 204, 51, 0.5);
+            width: 200px;
+            margin: 0 auto;
+        }
+
+        #joystickContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 150px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #joystick {
+            width: 80px;
+            height: 80px;
+            background-color: #4CAF50;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        #joystickDot {
+            width: 30px;
+            height: 30px;
+            background-color: #76FF03;
+            border-radius: 50%;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 48px;
+            text-align: center;
+        }
+    </style>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+    <style>
+        @keyframes backgroundGradient {
+            0% {
+                background-color: lightgreen;
+            }
+            50% {
+                background-color: #32CD32;
+            }
+            100% {
+                background-color: lightgreen;
+            }
+        }
+
+        canvas {
+            border: 2px solid black;
+            background: linear-gradient(45deg, #7FFF00, #ADFF2F, #32CD32);
+            background-size: 400% 400%;
+            animation: backgroundGradient 10s ease infinite;
+        }
+
+        #coinCounter {
+            background: radial-gradient(circle, rgba(255,204,51,1) 0%, rgba(255,183,41,1) 100%);
+            box-shadow: 0px 4px 10px rgba(255, 204, 51, 0.7), inset 0px 0px 5px rgba(255, 255, 255, 0.6);
+        }
+
+        @keyframes coinSparkle {
+            0% {
+                transform: scale(1);
+                box-shadow: 0px 0px 10px rgba(255, 223, 0, 0.6);
+            }
+            50% {
+                transform: scale(1.1);
+                box-shadow: 0px 0px 20px rgba(255, 223, 0, 1);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0px 0px 10px rgba(255, 223, 0, 0.6);
+            }
+        }
+
+        .coin {
+            animation: coinSparkle 2s ease-in-out infinite;
+        }
     </style>
 </head>
 <body>
-    <h1>Welcome to My Website</h1>
-    <p>This is a simple website for anyone to view.</p>
+    <canvas id="gameCanvas"></canvas>
+    <div id="coinCounter">Coins: 0</div>
+    <div id="joystickContainer">
+        <div id="joystick">
+            <div id="joystickDot"></div>
+        </div>
+    </div>
+    <div id="gameOver">Oh, looks like you also like cupcakes!</div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const coinCounter = document.getElementById("coinCounter");
+
+        canvas.width = window.innerWidth * 0.9;
+        canvas.height = window.innerHeight * 0.6;
+
+        const playerImage1 = new Image();
+        playerImage1.src = 'https://pngimg.com/uploads/pokemon/pokemon_PNG125.png';
+
+        const coinImage = new Image();
+        coinImage.src = 'https://static-00.iconduck.com/assets.00/gold-coin-icon-512x512-ehq45y6s.png';
+
+        let playerX = canvas.width / 2 - 25;
+        let playerY = canvas.height / 2 - 25;
+        let playerSize = 60;
+        const playerSpeed = 2.5;
+
+        const objects = [
+            { x: getRandomX(), y: getRandomY(), size: 30, collected: false },
+            { x: getRandomX(), y: getRandomY(), size: 30, collected: false },
+            { x: getRandomX(), y: getRandomY(), size: 30, collected: false }
+        ];
+
+        let coinsCollected = 0;
+        let sizeIncreased = false; // Track if the player's size has been increased
+
+        let joystick = {
+            active: false,
+            x: 0,
+            y: 0,
+            angle: 0,
+            distance: 0
+        };
+
+        function getRandomX() {
+            return Math.random() * (canvas.width - 30);
+        }
+
+        function getRandomY() {
+            return Math.random() * (canvas.height - 30);
+        }
+
+        function movePlayer() {
+            let newX = playerX + Math.cos(joystick.angle) * playerSpeed * joystick.distance;
+            let newY = playerY + Math.sin(joystick.angle) * playerSpeed * joystick.distance;
+
+            if (newX >= 0 && newX + playerSize <= canvas.width && newY >= 0 && newY + playerSize <= canvas.height) {
+                playerX = newX;
+                playerY = newY;
+            }
+
+            checkCollectObjects();
+        }
+
+        function checkCollectObjects() {
+            for (let obj of objects) {
+                if (!obj.collected &&
+                    playerX < obj.x + obj.size &&
+                    playerX + playerSize > obj.x &&
+                    playerY < obj.y + obj.size &&
+                    playerY + playerSize > obj.y) {
+                    obj.collected = true;
+                    coinsCollected++;
+                    coinCounter.textContent = `Coins: ${coinsCollected}`;
+
+                    // Increase player's size only once when reaching 20 coins
+                    if (coinsCollected >= 20 && !sizeIncreased) {
+                        playerSize += 10;
+                        sizeIncreased = true; // Prevent further size increases
+                    }
+
+                    spawnNewCoin(obj);
+                }
+            }
+        }
+
+        function spawnNewCoin(obj) {
+            obj.x = getRandomX();
+            obj.y = getRandomY();
+            obj.collected = false;
+        }
+
+        function drawPlayer() {
+            ctx.drawImage(playerImage1, playerX, playerY, playerSize, playerSize);
+        }
+
+        function drawCoins() {
+            for (let obj of objects) {
+                if (!obj.collected) {
+                    ctx.drawImage(coinImage, obj.x, obj.y, obj.size, obj.size);
+                }
+            }
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function gameLoop() {
+            clearCanvas();
+            movePlayer();
+            drawCoins();
+            drawPlayer();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameOver() {
+            alert("You just got yourself killed!");
+            resetGame();
+        }
+
+        function resetGame() {
+            playerX = canvas.width / 2 - 25;
+            playerY = canvas.height / 2 - 25;
+            playerSize = 60;
+            coinsCollected = 0;
+            coinCounter.textContent = `Coins: ${coinsCollected}`;
+            sizeIncreased = false; // Reset size increase flag
+            objects.forEach(obj => obj.collected = false);
+            gameLoop();
+        }
+
+        const joystickEl = document.getElementById('joystick');
+        const joystickDot = document.getElementById('joystickDot');
+
+        joystickEl.addEventListener('touchstart', handleJoystickStart);
+        joystickEl.addEventListener('touchmove', handleJoystickMove);
+        joystickEl.addEventListener('touchend', handleJoystickEnd);
+
+        function handleJoystickStart(e) {
+            e.preventDefault();
+            joystick.active = true;
+            const touch = e.touches[0];
+            joystick.x = touch.clientX;
+            joystick.y = touch.clientY;
+            joystickDot.style.left = `${touch.clientX - joystickEl.getBoundingClientRect().left - 15}px`;
+            joystickDot.style.top = `${touch.clientY - joystickEl.getBoundingClientRect().top - 15}px`;
+        }
+
+        function handleJoystickMove(e) {
+            if (!joystick.active) return;
+            const touch = e.touches[0];
+            const centerX = joystickEl.getBoundingClientRect().left + joystickEl.clientWidth / 2;
+            const centerY = joystickEl.getBoundingClientRect().top + joystickEl.clientHeight / 2;
+            const dx = touch.clientX - centerX;
+            const dy = touch.clientY - centerY;
+
+            joystick.distance = Math.min(Math.sqrt(dx * dx + dy * dy) / 60, 1); // Normalize distance
+            joystick.angle = Math.atan2(dy, dx);
+
+            joystickDot.style.left = `${touch.clientX - joystickEl.getBoundingClientRect().left - 15}px`;
+            joystickDot.style.top = `${touch.clientY - joystickEl.getBoundingClientRect().top - 15}px`;
+        }
+
+        function handleJoystickEnd() {
+            joystick.active = false;
+            joystick.distance = 0;
+            joystickDot.style.left = '50%';
+            joystickDot.style.top = '50%';
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth * 0.9;
+            canvas.height = window.innerHeight * 0.6;
+            resetGame(); // Reset game on resize
+        });
+
+        gameLoop();
+    </script>
 </body>
 </html>
